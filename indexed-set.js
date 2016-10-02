@@ -101,7 +101,7 @@ IndexedSet.Set = function(parent, options){
     if(parent && parent.ordering) this.ordering = parent.ordering.slice(0);
     else this.ordering = [];
     this.parent = parent;
-    this.primaryKey = '_id';
+    this.primaryKey = parent?parent.primaryKey:'_id';
     this.filters = [];
     this.buffer = false;
     // 'data' can flush a selection (assuming it's not asynchronously connected)
@@ -132,10 +132,11 @@ IndexedSet.Set = function(parent, options){
     else return this;
 };
 IndexedSet.arrayContains = function(array, item){
-    for(index in array){
+    /*for(index in array){
         if(array[index] === item) return true;
-    }
-    return false;
+    }*/
+    //return false;
+    return array.indexOf(item) !== -1;
 };
 var escapeString = function(field){
     return field.replace('\\', '\\\\').replace('\'', '\\\'');
@@ -196,7 +197,7 @@ IndexedSet.Set.prototype = {
     },
     forEach : function(func){
         this.ordering.forEach(fn.bind(function(id, index){
-            (fn.bind(func, this.index[id]))(this.index[id], index);
+            (fn.bind(func, this.index[id]))(this.index[id], index, id);
         }, this));
     },
     distinct : function(field){ //distinct(field) distinct() [object], or distinct(true) [object, strings only]
@@ -245,6 +246,7 @@ IndexedSet.Set.prototype = {
         if(this.filters) ob.filters = this.filters.slice(0);
         else ob.filters = [];
         ob.ordering = this.ordering.slice(0);
+        this.primaryKey = this.primaryKey;
         return ob;
     },
     //todo: both 'filter' and 'with' need some kind of callback or ready queue
@@ -298,25 +300,44 @@ IndexedSet.Set.prototype = {
         if(callback) callback();
         return result;
     },
-    indexOf : function(item){
-        var itemType = typeof item;
-        for( index in this.ordering ){
-            if(item.hasOwnProperty(index)) continue;
-            switch(itemType){
+    indexOf : function(target){
+        var found;
+        var type = typeof target;
+        var ob = this;
+        this.ordering.forEach(function(item, index){
+            if(found !== undefined) return;
+            switch(type){
                 case 'string':
-                    if(this.ordering[index][this.primaryKey] == item) return index;
+                    if(item == target) found = index;
                     break;
                 default :
-                    if(this.ordering[index][this.primaryKey] == item[this.primaryKey]) return index;
+                    if(item == target[ob.primaryKey]) found = index;
                     
             }
-        }
-        return -1;
+        });
+        return found===undefined?-1:found;
+    },
+    toString : function(){
+        return JSON.stringify(this.toArray(), undefined, '    ');
+    },
+    toArray : function(){
+        var results = [];
+        this.forEach(function(item, index, pos){
+            results.push(item);
+        }.bind(this));
+        return results;
+    },
+    dump : function(){
+        console.log('[FILTERS]');
+        console.log(this.filters.map(function(fn){ return fn.toString() }).join("\n\n"));
+        console.log('[DATA]');
+        console.log(this.toArray());
     },
     and : function(set){
         var results = [];
-        set.forEach(function(item){
-            if(this.indexOf(item) !== -1) results.push(item);
+        var ob = this;
+        this.forEach(function(item, index, pos){
+            if(IndexedSet.arrayContains(set, item)) results.push(item);
         }.bind(this));
         this.ordering = results;
     },

@@ -1,7 +1,7 @@
 {
     "name": "indexed-set",
-    "homepage": "https://github.com/DelphiSolutions/indexed-set",
-    "version": "0.0.2-alpha",
+    "homepage": "https://github.com/khrome/indexed-set",
+    "version": "0.1.0",
     "main": "indexed-set.js",
     "description": "Set Manipulation for ordered sets",
     "keywords": [
@@ -12,12 +12,12 @@
     "author": "Abbey Hawk Sparrow <@khrome> (http://patternweaver.com)",
     "contributors": [],
     "bugs": {
-        "url": "https://github.com/DelphiSolutions/indexed-set/issues"
+        "url": "https://github.com/khrome/indexed-set/issues"
     },
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git://github.com/DelphiSolutions/indexed-set.git"
+        "url": "git://github.com/khrome/indexed-set.git"
     },
     "dependencies": {
         "prime": "0.0.5-alpha"
