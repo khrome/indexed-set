@@ -12,7 +12,7 @@ describe('Indexed.Set', function(){
         var data = [];
         for(var lcv=0; lcv < 4; lcv++){
             var item = {};
-            item['_id'] = '27g7fgv8'+Math.floor(Math.random()*100000)+'abc645';
+            item['_id'] = '27g7fgv8abc645'+Math.floor(Math.random()*100000)+'';
             item['name'] = Faker.Name.findName();
             item['email'] = Faker.Internet.email();
             item['city'] = Faker.Address.city();
@@ -35,5 +35,12 @@ describe('Indexed.Set', function(){
             found = found || theSet[0].state != item.state;
         });
         found.should.equal(false);
+    });
+    
+    it('members update correctly', function(){
+        var subset = theSet.clone().with('_id', '==', theSet[0]['_id']);
+        subset[0]['city'] = 'TTTTT';
+        var newset = theSet.clone().with('_id', '==', theSet[0]['_id']);
+        newset[0]['city'].should.equal('TTTTT');
     });
 });

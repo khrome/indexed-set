@@ -1,6 +1,6 @@
-var type = require('prime/util/type');
-var array = require('prime/es5/array');
-var fn = require('prime/es5/function');
+var array = {};
+var sift = require('sift');
+var vm = require('vm');
 array.erase = function(arr, field){
     var index;
     while((arr.indexOf(field)) != -1){ //get 'em all
@@ -77,7 +77,7 @@ function recursiveHeirarchy(hierarchy, fields, scope, stack, result, stringsOnly
     if(!result[field]) result[field] = {};
     if(stringsOnly){
         fields.forEach(function(field, index){
-            if(type(scope[0][field]) != 'string') delete fields[index];
+            if(typeof scope[0][field] != 'string') delete fields[index];
         });
     }
     possibleValues.forEach(function(value){
@@ -104,28 +104,32 @@ IndexedSet.Set = function(parent, options){
     this.primaryKey = parent?parent.primaryKey:'_id';
     this.filters = [];
     this.buffer = false;
+    var rootCollection = this.parent;
+    this.root = rootCollection;
+    while(rootCollection.parent) rootCollection = rootCollection.parent;
     // 'data' can flush a selection (assuming it's not asynchronously connected)
+    var ob = this;
     Object.defineProperty(this, 'data', {
-        get : fn.bind(function(){
-            if(!this.buffer){
-                this.buffer = [];
-                this.ordering.forEach(fn.bind(function(id){
-                    this.buffer.push(this.index[id]);
-                }, this));
+        get : function(){
+            if(!ob.buffer){
+                ob.buffer = [];
+                ob.ordering.forEach(function(id){
+                    ob.buffer.push(ob.root.lookup(id));
+                });
             }
             return this.buffer;
-        }, this),
-        set : fn.bind(function(value){
-            throw('I pity the fool!')
-        }, this)
+        },
+        set : function(value){
+            throw('The data preperty may not be set.')
+        }
     });
     Object.defineProperty(this, 'length', {
-        get : fn.bind(function(){
-            return this.ordering.length;
-        }, this),
-        set : fn.bind(function(value){
+        get : function(){
+            return ob.ordering.length;
+        },
+        set : function(value){
             throw('Cannot set length property of a Set');
-        }, this)
+        }
     });
     
     if(IndexedSet.proxied) return SetForwardingHandler.wrap(this);
@@ -145,12 +149,12 @@ IndexedSet.Set.prototype = {
     push : function(value){
         this.buffer = false;
         if(typeof value === 'string'){
-            if(!this.index[value]) throw('object has no '+this.primaryKey+'(\''+value+'\')');
+            if(!this.root.lookup(value)) throw('object has no '+this.primaryKey+'(\''+value+'\')');
             this.ordering.push(value);
         }else{
             if(!value[this.primaryKey]) throw('object has no '+this.primaryKey);
             else{
-                if(!this.index[value[this.primaryKey]]) this.index[value[this.primaryKey]] = value;
+                if(!this.root.lookup(value[this.primaryKey])) this.root.index[value[this.primaryKey]] = value;
                 this.ordering.push(value[this.primaryKey]);
             }
         }
@@ -158,12 +162,12 @@ IndexedSet.Set.prototype = {
     pop : function(){
         this.buffer = false;
         var id = this.ordering.pop();
-        if(this.index[id]) return this.index[id];
+        return this.root.lookup(id);
     },
     shift : function(){
         this.buffer = false;
         var id = this.ordering.shift();
-        if(this.index[id]) return this.index[id];
+        return this.root.lookup(id);
     },
     pause : function(){
         this.paused = true;
@@ -181,24 +185,26 @@ IndexedSet.Set.prototype = {
         }
     },
     _filterData : function(){
-        var func = this.filterFunction();
+        var func = this.filterFunction(this.sandboxed);
         var results = [];
+        var ob = this;
+        var cxt;
         try{
-            //var before = this.ordering.length;
-            //var beforek = Object.keys(this.index).length;
-            this.forEach(fn.bind(function(item, id){
-                var cond = (fn.bind(func, item))();
-                if(cond) results.push(item[this.primaryKey]);
-            }, this));
+            this.forEach(function(item, id){
+                cxt = {item:item,sift:sift, console:console};
+                var cond = ob.sandboxed?func.runInNewContext(cxt):func.apply(item);
+                if(cond) results.push(item[ob.primaryKey]);
+            });
             this.ordering = results;
         }catch(ex){
-            console.log('EEEERRRR', ex, fn.toString());
+            console.log('EEEERRRR', ex.stack);
         }
     },
     forEach : function(func){
-        this.ordering.forEach(fn.bind(function(id, index){
-            (fn.bind(func, this.index[id]))(this.index[id], index, id);
-        }, this));
+        var ob = this;
+        this.ordering.forEach(function(fieldName, index){
+            func(ob.root.lookup(fieldName), index, fieldName);
+        });
     },
     distinct : function(field){ //distinct(field) distinct() [object], or distinct(true) [object, strings only]
         var stringsMode = false;
@@ -261,10 +267,13 @@ IndexedSet.Set.prototype = {
         }else if(this.paused) this.blockedFilter = true;
         return this;
     },
+    sift : function(document, callback){
+        var filter = new Function('return sift('+JSON.stringify(document)+')(this)');
+        this.sandboxed = true; //scoped fns cannot cross message boundaries(domains, machines, processes, etc.)
+        this.filter(filter, true);
+        if(callback) callback();
+    },
     'with' : function(field, comparison, value, callback){
-        /*if( (!comparison) && (!value) ){
-            return this.filter(new Function('return !!this[\''+field.replace('\\', '\\\\').replace('\'', '\\\'')+'\'];'));
-        } //*/
         if(comparison == '=') comparison = '=='; //lulz
         if(comparison && !value){
             value = comparison;
@@ -272,7 +281,6 @@ IndexedSet.Set.prototype = {
         }
         var fn;
         try{
-            //var extra = 'console.log(\'COMP\', this[\''+field.replace('\\', '\\\\').replace('\'', '\\\'')+'\'], \''+comparison+'\', \''+value+'\', \''+field.replace('\'', '\\\'')+'\', \''+field+'\');';
             //todo: fix the ugliness
             var body;
             switch(typeof value){
@@ -370,52 +378,82 @@ IndexedSet.Set.prototype = {
         this.filters.erase(filter);
         //this.fireEvent('change');
     },
-    filterFunction : function(){
+    filterFunction : function(returnScript){
         var filters = [true];
+        var nativ = false;
         this.filters.forEach(function(filter){
             filters.push('('+filter.toString()+').apply(this)');
         });
-        var fun = new Function('return '+filters.join(' && ')+';');
-        return fun;
+        if(returnScript){
+            var script = new vm.Script('(function(){return '+filters.join(' && ')+';}).apply(item)');
+            return script;
+        }else{
+            var fun = new Function('return '+filters.join(' && ')+';');
+            return fun;
+        }
     },
     getByPosition : function(position){
         if(!this.ordering[position]) return undefined;
-        return this.index[this.ordering[position]];
+        return this.root.lookup(this.ordering[position]);
     },
     getById : function(id){
         if(!id in this.ordering) return undefined;
-        return this.index[id];
+        return this.root.lookup(id);
     },
     setByIdFromString : function(id, value){
         if(id !== value) throw('id value mismatch('+id+' != '+value+')');
-        if(!this.index[value]) throw('this '+this.primaryKey+'('+value+') not found!');
+        //if(!this.index[value]) throw('this '+this.primaryKey+'('+value+') not found!');
         if(this.indexOf(value) === -1){
             this.push(value);
         }// else the set already contains this value
     },
     setByPositionFromString : function(position, value){
-        if(!this.index[value]) throw('this '+this.primaryKey+'('+value+') not found!');
+        var theObject = this.root.lookup(value);
+        if(!theObject) throw('this '+this.primaryKey+'('+value+') not found!');
         this.ordering[position] = value;
     },
     setByIdFromObject : function(id, value){
         if(id !== value[this.primaryKey]) throw('id value mismatch('+id+' != '+value[this.primaryKey]+')');
-        if(!this.index[id]) this.index[id] = value;
-        if(this.indexOf(value[this.primaryKey]) === -1){
-            this.push(value[this.primaryKey]);
+        if(this.root){
+            var valueInCollection = this.root.lookup(id);
+            if(!valueInCollection){
+                this.root.push(value);
+            }else{
+                Object.keys(value).forEach(function(fieldName){
+                    valueInCollection[fieldName] = value[fieldName];
+                });
+            }
+            var inSet = this.ordering.indexOf(id) !== -1;
+            if(!inSet) this.ordering.push(value[this.primaryKey]);
         }
-        this.ordering[id] = this.index[value[this.primaryKey]];
+        
     },
     setByPositionFromObject : function(position, value){
-        if(!this.index[value[this.primaryKey]]) this.index[value[this.primaryKey]] = value;
-        this.ordering[position] = value[this.primaryKey];
+        //if(!this.index[value[this.primaryKey]]) this.index[value[this.primaryKey]] = value;
+        if(this.root){
+            var valueInCollection = this.root.lookup(value[this.primaryKey]);
+            if(!valueInCollection){
+                this.root.push(value);
+            }else{
+                Object.keys(value).forEach(function(fieldName){
+                    valueInCollection[fieldName] = value[fieldName];
+                });
+            }
+            var valueAtPosition = this.ordering[value[this.primaryKey]];
+            if(!valueAtPosition){
+                this.ordering.push(value);
+            }else{
+                this.ordering[position] = value[this.primaryKey];
+            }
+        }
     },
     //todo: thread me
     hierarchy : function(hierarchies, fields, discriminants, callback){
-        if( (!callback) && type(discriminants) == 'function'){
+        if( (!callback) && typeof discriminants == 'function'){
             callback = discriminants;
             discriminants = undefined;
         }
-        if( (!callback) && (!discriminants) && type(fields) == 'function'){
+        if( (!callback) && (!discriminants) && typeof fields == 'function'){
             callback = fields;
             fields = undefined;
         }
@@ -441,7 +479,7 @@ IndexedSet.Set.prototype = {
         if(!aggregator) aggregator = function(a, b){ return a + b; }
         this.forEach(function(item){
             var value = item[field]
-            if(type(value) == 'string'){
+            if(typeof value == 'string'){
                 value = value.replace('\t', '').replace(' ', '').replace(',', '');
                 value = parseFloat(value);
                 value = value || 0.0;
@@ -455,12 +493,13 @@ IndexedSet.Collection = function(options, key){
     this.primaryKey = options.primaryKey || key || '_id';
     //this.primaryKey = '_id';
     if(typeof options === 'string') options = {name:options};
-    if(type(options) === 'array') options = {index:options};
+    if(Array.isArray(options)) options = {index:options};
     this.index = {};
+    var ob = this;
     if(options.index){
-        array.forEach(options.index, fn.bind(function(item){
-            this.index[item[this.primaryKey]] = item;
-        }, this));
+        Object.keys(options.index).forEach(function(key){
+            ob.index[options.index[key][ob.primaryKey]] = options.index[key];
+        });
     }
     this.events = {};
     this.options = options;
@@ -513,6 +552,12 @@ IndexedSet.Collection = function(options, key){
     };
 };
 IndexedSet.Collection.prototype = {
+    lookup : function(value){
+        if(
+            this.index[value] && 
+            this.index[value][this.primaryKey] == value
+        ) return this.index[value];
+    },
     attachDatasource : function(datasource){
         this.datasource = datasource;
     },
@@ -527,4 +572,3 @@ IndexedSet.Collection.prototype = {
     }
 };
 module.exports = IndexedSet;
-
