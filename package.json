@@ -1,7 +1,7 @@
 {
     "name": "indexed-set",
     "homepage": "https://github.com/khrome/indexed-set",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "main": "indexed-set.js",
     "description": "Set Manipulation for ordered sets",
     "keywords": [
