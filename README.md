@@ -1,5 +1,9 @@
 indexed-set.js
 ==============
+[![NPM version](https://img.shields.io/npm/v/indexed-set.svg)]()
+[![npm](https://img.shields.io/npm/dt/indexed-set.svg)]()
+[![Travis](https://img.shields.io/travis/khrome/indexed-set.svg)]()
+
 A utility wrapper for set operations using arrays of objects. Work with sets as if they were simple arrays!
 
 Each set has a chain of ancestry which, at it's root, is a collection. All values are held in the collections, while the sets themselves are simply orderings across subsets of ids
