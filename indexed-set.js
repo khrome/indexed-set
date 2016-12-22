@@ -157,6 +157,9 @@
     var escapeString = function(field){
         return field.replace('\\', '\\\\').replace('\'', '\\\'');
     };
+    IndexedSet.Set.constructorOf = function(object){
+        return !!(object.index && object.ordering && object.features);
+    }
     IndexedSet.Set.prototype = {
         push : function(value){
             this.buffer = false;
