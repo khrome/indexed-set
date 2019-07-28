@@ -4,7 +4,7 @@ indexed-set.js
 [![npm](https://img.shields.io/npm/dt/indexed-set.svg)]()
 [![Travis](https://img.shields.io/travis/khrome/indexed-set.svg)]()
 
-A utility wrapper for set operations using arrays of objects. Work with sets as if they were simple arrays!
+A utility wrapper for set operations using arrays of objects. Work with sets as if they were simple arrays! Updated for ES6 proxies( For Harmony Proxies, please use <= 1.x).
 
 Each set has a chain of ancestry which, at it's root, is a collection. All values are held in the collections, while the sets themselves are simply orderings across subsets of ids
 
@@ -14,7 +14,7 @@ Instantiating
 First, require the module:
 
     var Indexed = require('indexed-set');
-    
+
 Then create a collection:
 
     var collection = new Indexed.Collection(<array>, [<keyName>]);
@@ -22,7 +22,7 @@ Then create a collection:
 where keyName defaults to Mongo's '_id' or
 
     var collection = new Indexed.Collection(<options>);
-    
+
 The available options are:
 
 1. datasource : the mongo adapter
@@ -32,7 +32,7 @@ The available options are:
 then to create a set:
 
     new Indexed.Set(collection);
-    
+
 If I want to initialize the set from a mongo collection using the built-in mongo adapter it would look like this:
 
     var MongoAdapter = require('indexed-set/mongo');
@@ -57,7 +57,7 @@ Internal Data Access
 additionally you are able to call:
 
     Indexed.enableProxyWrapper();
-    
+
 which wraps a proxy around the object so you can use an array-like syntax:
 
 so given a set:
@@ -68,28 +68,28 @@ so given a set:
         {a:'r',b:'q',c:'f'}
     ], 'a');
     var mySet = new Indexed.Set(collection);
-    
+
 I could say:
 
     mySet['a']
-    
+
 which resolves to:
 
     {a:'a',b:'b',c:'c'}
-    
+
 as does
 
-    mySet[0]
-    
+    mySet.by.position[0]
+
 and, as another example:
-    
+
     mySet['r']
-    
+
 is
 
     {a:'r',b:'q',c:'f'}
-    
-Meaning you can either use strings to address by primary key or integers to address by position. Proxies FTW.
+
+Meaning you can either address by primary key or position.
 
 Array Syntax
 ------------

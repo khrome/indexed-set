@@ -22,7 +22,10 @@
     var SetForwardingHandler;
     IndexedSet.enableProxyWrapper = function(){
         //todo: allow proxies in the browser, too
-        var Proxy = require('node-proxy');
+        if(!global.Proxy){
+            global.Proxy = require('node-proxy');
+        }
+        //var Proxy = require('node-proxy');
         // Proxies allow us to piggyback on javascript's array syntax
         SetForwardingHandler = function(obj) {
             this.target = obj;
@@ -30,6 +33,18 @@
         SetForwardingHandler.prototype = {
             has: function(name){ return name in this.target; },
             get: function(rcvr, name){
+                var ob = this;
+                if(name === 'by'){
+                    var accessors = {
+                        position : new Proxy({}, {
+                            get :function(target, name){
+                                return ob.target.getByPosition(parseInt(name));
+                            }
+                        })
+                    }
+                    accessors.pos = accessors.position;
+                    return accessors;
+                }
                 if( ((name || name === 0) && typeof name  == 'number') ){  //isNum?
                     return this.target.getByPosition(name);
                 }
@@ -75,7 +90,7 @@
             keys: function() { return Object.keys(this.target); },
         };
         SetForwardingHandler.wrap = function(obj) {
-            return Proxy.create(new SetForwardingHandler(obj), Object.getPrototypeOf(obj));
+            return new Proxy(Object.getPrototypeOf(obj), new SetForwardingHandler(obj));
         };
         IndexedSet.proxied = true;
         return IndexedSet;
@@ -143,7 +158,7 @@
                 throw('Cannot set length property of a Set');
             }
         });
-        
+
         if(IndexedSet.proxied) return SetForwardingHandler.wrap(this);
         else return this;
     };
@@ -335,7 +350,7 @@
                         break;
                     default :
                         if(item == target[ob.primaryKey]) found = index;
-                        
+
                 }
             });
             return found===undefined?-1:found;
@@ -441,7 +456,7 @@
                 var inSet = this.ordering.indexOf(id) !== -1;
                 if(!inSet) this.ordering.push(value[this.primaryKey]);
             }
-            
+
         },
         setByPositionFromObject : function(position, value){
             //if(!this.index[value[this.primaryKey]]) this.index[value[this.primaryKey]] = value;
@@ -549,7 +564,7 @@
             this.setSeriesRange(min, max);
         };
         this.setSeriesRange = function(start, stop){
-            var current = new IndexedSet.Set(this); 
+            var current = new IndexedSet.Set(this);
             this.series.each(function(set, index){
                 if(index > start && index > stop) current = current.and(set);
             });
@@ -569,7 +584,7 @@
     IndexedSet.Collection.prototype = {
         lookup : function(value){
             if(
-                this.index[value] && 
+                this.index[value] &&
                 this.index[value][this.primaryKey] == value
             ) return this.index[value];
         },

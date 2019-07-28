@@ -22,25 +22,34 @@ describe('Indexed.Set', function(){
         collection = new Indexed.Collection(data);
         theSet = new Indexed.Set(collection);
     });
-    
+
     it('generates test data', function(){
         theSet.length.should.not.equal(0);
     });
-    
+
+    it('clones a set', function(){
+        var subset = theSet.clone();
+        theSet.length.should.equal(subset.length);
+        theSet.by.position[0]
+        subset.forEach(function(item, index){
+            theSet.by.position[index].state != item.state;
+        });
+    });
+
     it('reduces a set and all members are correct', function(){
-        var subset = theSet.clone().with('state', '==', theSet[0].state);
+        var subset = theSet.clone().with('state', '==', theSet.by.position[0].state);
         subset.length.should.not.equal(theSet.length);
         var found = false;
         subset.forEach(function(item){
-            found = found || theSet[0].state != item.state;
+            found = found || theSet.by.position[0].state != item.state;
         });
         found.should.equal(false);
     });
-    
+
     it('members update correctly', function(){
-        var subset = theSet.clone().with('_id', '==', theSet[0]['_id']);
-        subset[0]['city'] = 'TTTTT';
-        var newset = theSet.clone().with('_id', '==', theSet[0]['_id']);
-        newset[0]['city'].should.equal('TTTTT');
+        var subset = theSet.clone().with('_id', '==', theSet.by.position[0]['_id']);
+        subset.by.position[0]['city'] = 'TTTTT';
+        var newset = theSet.clone().with('_id', '==', theSet.by.position[0]['_id']);
+        newset.by.position[0]['city'].should.equal('TTTTT');
     });
 });
