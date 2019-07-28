@@ -221,7 +221,7 @@
             var cxt;
             try{
                 this.forEach(function(item, id){
-                    cxt = {item:item,sift:sift, console:console};
+                    cxt = {item:item,sift:(sift.default || sift), console:console};
                     var cond = ob.sandboxed?func.runInNewContext(cxt):func.apply(item);
                     if(cond) results.push(item[ob.primaryKey]);
                 });
