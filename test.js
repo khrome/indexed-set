@@ -32,7 +32,7 @@ describe('Indexed.Set', function(){
         theSet.length.should.equal(subset.length);
         theSet.by.position[0]
         subset.forEach(function(item, index){
-            theSet.by.position[index].state != item.state;
+            theSet.by.position[index].state.should.equal(item.state);
         });
     });
 
