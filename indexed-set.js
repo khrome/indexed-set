@@ -316,7 +316,7 @@
                 switch(typeof value){
                     case 'string':
                         body = 'return this[\''+field.replace('\\', '\\\\').replace('\'', '\\\'')+'\'] '+comparison+' \''+value.replace('\\', '\\\\').replace('\'', '\\\'')+'\';'
-                        fn = new Function(body);
+                        //fn = new Function(body);
                         break;
                     case 'array':
                         if(value.length == 0) throw('no fields error!');
@@ -327,7 +327,8 @@
                         break;
                     default : body = 'return this[\''+field.replace('\\', '\\\\').replace('\'', '\\\'')+'\'] '+comparison+' '+value+';';
                 }
-                fn = new Function(body);
+                //fn = new Function(body);
+                eval('fn = function(){ '+body+' }');
             }catch(ex){
                     console.log('ERROR IN GENERATED SELECTOR', body);
                     console.log('?', field, comparison, value);
@@ -372,53 +373,66 @@
             console.log(this.toArray());
         },
         and : function(set){
-            var results = [];
-            var ob = this;
-            this.forEach(function(item, index, pos){
-                if(IndexedSet.arrayContains(set, item)) results.push(item);
-            }.bind(this));
-            this.ordering = results;
+            if(set.root === this.root){
+                var cl = this.root.clone();
+                var body = 'var s = ('+set.filterFunction()+').apply(this); ';
+                body += 'var t = ('+this.filterFunction()+').apply(this); ';
+                body += 'return t && s';
+                var fn = new Function(body);
+                return cl.filter(fn, true);
+            }
+            throw new Error('joins not yet supported');
         },
         or : function(set){
-            var results = [];
-            set.forEach(function(item){
-                if(!IndexedSet.arrayContains(results, item)) results.push(item);
-            }.bind(this));
-            this.ordering = results;
+            if(set.root === this.root){
+                var cl = this.root.clone();
+                var body = 'var s = ('+set.filterFunction()+').apply(this); ';
+                body += 'var t = ('+this.filterFunction()+').apply(this); ';
+                body += 'return t || s';
+                var fn = new Function(body);
+                return cl.filter(fn, true);
+            }
+            throw new Error('joins not yet supported');
         },
         xor : function(set){
-            var results = [];
-            set.forEach(function(item){
-                if(!this.indexOf(item) !== -1) results.push(item);
-            }.bind(this));
-            this.forEach(function(item){
-                if(!set.indexOf(item) !== -1) results.push(item);
-            }.bind(this));
-            this.ordering = results;
+            if(set.root === this.root){
+                var cl = this.root.clone();
+                var body = 'var s = ('+set.filterFunction()+').apply(this); ';
+                body += 'var t = ('+this.filterFunction()+').apply(this); ';
+                body += 'return (t || s) && !(t && s)';
+                var fn = new Function(body);
+                return cl.filter(fn, true);
+            }
+            throw new Error('joins not yet supported');
         },
         not : function(set){
-            var results = [];
-            set.forEach(function(item){
-                if(!this.indexOf(item) !== -1) results.push(item);
-            }.bind(this));
-            this.ordering = results;
+            if(set.root === this.root){
+                var cl = this.root.clone();
+                var body = 'var s = ('+set.filterFunction()+').apply(this); ';
+                body += 'var t = ('+this.filterFunction()+').apply(this); ';
+                body += 'return t && !s';
+                var fn = new Function(body);
+                return cl.filter(fn, true);
+            }
+            throw new Error('joins not yet supported');
         },
         removeFilter : function(filter, callback){
             this.buffer = false;
             this.filters.erase(filter);
             //this.fireEvent('change');
         },
-        filterFunction : function(returnScript){
+        filterFunction : function(returnScript, invert){
             var filters = [true];
             var nativ = false;
+            //var IndexedSet = Indexed;
             this.filters.forEach(function(filter){
                 filters.push('('+filter.toString()+').apply(this)');
             });
             if(returnScript){
-                var script = new vm.Script('(function(){return '+filters.join(' && ')+';}).apply(item)');
+                var script = new vm.Script('(function(){return '+(invert?'!':'')+'('+filters.join(' && ')+');}).apply(item)');
                 return script;
             }else{
-                var fun = new Function('return '+filters.join(' && ')+';');
+                var fun = new Function('return '+(invert?'!':'')+'('+filters.join(' && ')+');');
                 return fun;
             }
         },
@@ -599,6 +613,9 @@
                 }.bind(this));
                 callback();
             }.bind(this));
+        },
+        clone : function(options){
+            return new IndexedSet.Set(this, options);
         }
     };
     return IndexedSet;
